@@ -1,0 +1,6 @@
+# Python
+__pycache__/
+*.pyc
+
+# Artefatos gerados em tempo de execucao
+capture.log
