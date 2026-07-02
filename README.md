@@ -15,6 +15,7 @@ A Python-based **interactive packet sniffer** for capturing, parsing, and analyz
 - 💾 **Persistent Logging** — Saves all captures to `capture.log` for review
 - 📦 **PCAP Export** — Export captures to `.pcap` format (opens in Wireshark)
 - 🔍 **BPF Filtering** — Filter traffic by protocol, port, IP, etc.
+- 🌐 **DHCP Monitor** — Decodes BOOTP/DHCP headers byte-by-byte and tracks leases per client
 - ⚡ **Lightweight** — Minimal dependencies, runs on Windows/Linux/macOS
 
 ---
@@ -138,6 +139,47 @@ python analyzer.py -i "Ethernet" -f "tcp port 80 or tcp port 443" -c 100 -o web.
 
 ---
 
+## 🌐 DHCP Monitor
+
+The `--dhcp-monitor` flag turns on a DHCP tracker. It reads the BOOTP header and
+DHCP options straight from the UDP payload (ports 67/68), so it decodes the fields
+by hand instead of relying on Scapy's DHCP layer. As messages go by it keeps a
+lease table with one row per client MAC.
+
+```bash
+# live capture with the DHCP monitor on
+python analyzer.py -i "Ethernet" --dhcp-monitor
+
+# read a saved capture instead of sniffing live (-r/--read)
+python analyzer.py -r tests/dhcp_sample.pcap --dhcp-monitor
+```
+
+Each DHCP packet is shown as it arrives, and a lease table is printed at the end:
+
+```
+[DHCP] ACK  xid=0x12345678  cliente=08:00:27:ab:cd:ef
+        IP concedido : 192.168.0.50
+        Servidor     : 192.168.0.1
+        Lease        : 86400s (24h)
+
+Leases DHCP (1 cliente(s), 5 mensagens)
+MAC                IP               Servidor         Hostname         Ultima msg Lease
+-----------------------------------------------------------------------------------------
+08:00:27:ab:cd:ef  192.168.0.50     192.168.0.1      notebook-gustavo ACK        86400s (24h)
+```
+
+Fields decoded: message type (option 53), requested IP (50), server identifier (54),
+lease time (51), hostname (12), plus the BOOTP `yiaddr`/`siaddr`/`chaddr`/`xid`.
+
+To try it without a live network, generate the sample capture first:
+
+```bash
+python tests/make_dhcp_pcap.py      # creates tests/dhcp_sample.pcap
+python tests/test_dhcp_monitor.py   # runs the 29 automated checks
+```
+
+---
+
 ## 📋 Output Format
 
 ### Terminal Display
@@ -171,9 +213,14 @@ python analyzer.py -i "Ethernet" -f "tcp port 80 or tcp port 443" -c 100 -o web.
 packet-analyzer/
 ├── analyzer.py          # Main sniffer engine
 ├── parser.py            # Protocol layer parser
+├── dhcp_monitor.py      # DHCP/BOOTP decoder + lease table
 ├── logger.py            # File logging module
 ├── requirements.txt     # Python dependencies
 ├── capture.log          # Generated log file (created at runtime)
+├── tests/               # DHCP tests + sample pcap generator
+│   ├── dhcp_sample.pcap
+│   ├── make_dhcp_pcap.py
+│   └── test_dhcp_monitor.py
 └── README.md            # This file
 ```
 
@@ -346,7 +393,8 @@ This is normal for encrypted traffic (HTTPS, etc.). The parser filters most bina
 ## 📄 Command Reference
 
 ```
-usage: analyzer.py [-h] [-i IFACE] [-c COUNT] [-f FILTER] [-o OUTPUT]
+usage: analyzer.py [-h] [-i IFACE] [-c COUNT] [-f FILTER] [-o OUTPUT] [-r READ]
+                   [--dhcp-monitor]
 
 options:
   -h, --help            show this help message and exit
@@ -354,6 +402,8 @@ options:
   -c, --count COUNT     Number of packets to capture (0 = unlimited)
   -f, --filter FILTER   BPF filter (e.g. 'tcp', 'udp port 53')
   -o, --output OUTPUT   Save capture to .pcap file
+  -r, --read READ       Read packets from a .pcap file instead of live capture
+  --dhcp-monitor        Track DHCP leases (decode BOOTP/DHCP)
 ```
 
 ---

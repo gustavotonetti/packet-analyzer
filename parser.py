@@ -1,8 +1,16 @@
 from scapy.all import Ether, IP, TCP, UDP, ICMP, Raw
 from colorama import Fore, Style
+from dhcp_monitor import parse_dhcp
 
-def parse_packet(packet):
+def parse_packet(packet, dhcp_on=False):
     output = []
+
+    #--- DHCP ---
+    #com o monitor ligado, tenta decodificar o pacote como DHCP
+    if dhcp_on:
+        dhcp = parse_dhcp(packet)
+        if dhcp:
+            output.append(dhcp)
 
     # --- Ethernet Layer ---
     if packet.haslayer(Ether):
